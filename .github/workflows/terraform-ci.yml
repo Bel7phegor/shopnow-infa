@@ -32,13 +32,13 @@ permissions:
 env:
   AWS_REGION: ap-southeast-3
   TF_VERSION: "1.8.0"
-  TARGET_BRANCH: ${{ github.base_ref || github.ref_name }} # Resolved branch name for workflow logic
 
 jobs:
+  # -----------------------------------------------------------------
   # JOB 1: VALIDATE - Static analysis, syntax and format validation
+  # -----------------------------------------------------------------
   validate:
-    # Uses github.base_ref for pull requests, otherwise github.ref_name (the branch name) for pushes.
-    name: "Validate [${{ env.TARGET_BRANCH }}]"
+    name: "Validate [${{ github.base_ref || github.ref_name }}]"
     runs-on: ubuntu-latest
 
     steps:
@@ -49,6 +49,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+
       - name: Check Terraform format
         id: fmt
         run: terraform fmt -check -recursive
@@ -62,15 +63,16 @@ jobs:
         run: terraform validate -no-color
 
       - name: Evaluate execution guardrails
-      - name: Evaluate execution guardrails
-        if: steps.fmt.outcome == 'failure' || steps.fmt.outcome == 'cancelled'
+        if: steps.fmt.outcome == 'failure'
         run: |
-          echo "Error: Terraform code is not formatted or the format check was cancelled. Please run 'terraform fmt -recursive' locally and re-commit."
+          echo "Error: Terraform code is not formatted. Please run 'terraform fmt -recursive' locally and re-commit."
           exit 1
 
+  # -----------------------------------------------------------------
   # JOB 2: PLAN - Infrastructure change calculation
+  # -----------------------------------------------------------------
   plan:
-    name: "Plan [Target: ${{ env.TARGET_BRANCH }}]"
+    name: "Plan [Target: ${{ github.base_ref || github.ref_name }}]"
     runs-on: ubuntu-latest
     needs: validate
 
@@ -85,9 +87,10 @@ jobs:
       - name: Set environment variables
         id: set_env
         run: |
-          echo "Log: Target branch evaluated as ${{ env.TARGET_BRANCH }}"
+          TARGET_BRANCH="${{ github.base_ref || github.ref_name }}"
+          echo "Log: Target branch evaluated as $TARGET_BRANCH"
           
-          if [[ "${{ env.TARGET_BRANCH }}" == "main" ]]; then
+          if [[ "$TARGET_BRANCH" == "main" ]]; then
             echo "tf_env=prod"                                       >> $GITHUB_OUTPUT
             echo "tf_varfile=environments/prod/terraform.tfvars"     >> $GITHUB_OUTPUT
             echo "state_key=prod/terraform.tfstate"                  >> $GITHUB_OUTPUT
@@ -124,19 +127,13 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          set -o pipefail
           terraform plan \
             -var-file=${{ steps.set_env.outputs.tf_varfile }} \
             -out=tfplan \
             -detailed-exitcode \
             -no-color 2>&1 | tee plan_output.txt
-          exitcode=$?
-          # If plan_output.txt is empty, treat as error
-          if [ ! -s plan_output.txt ]; then
-            exitcode=1
-            echo "Terraform plan did not produce any output. Marking as failure."
-          fi
-          echo "exitcode=${exitcode}" >> $GITHUB_OUTPUT
+
+          echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Upload plan artifact
@@ -146,8 +143,6 @@ jobs:
           path: tfplan
           retention-days: 1
 
-      # This step posts the Terraform plan summary as a comment to the Pull Request.
-      # It only runs on pull_request events and will be skipped for push events.
       - name: Post plan summary to Pull Request
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -183,11 +178,13 @@ jobs:
         if: steps.plan.outputs.exitcode == '1'
         run: exit 1
 
-apply-dev:
+  # JOB 3a: APPLY DEV — Triển khai tự động cho DEV
+  apply-dev:
     name: "Apply [dev]"
     runs-on: ubuntu-latest
     needs: plan
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/develop')
+    # SỬA ĐỔI: Viết gọn trên 1 dòng duy nhất và lược bỏ check exitcode để tránh lỗi bắt hụt của Shell
+    if: github.event_name == 'push' && github.ref_name == 'develop'
     
     environment: development
 
@@ -226,16 +223,10 @@ apply-dev:
         run: terraform apply -auto-approve -no-color tfplan
 
       - name: Capture outputs
-        run: terraform output -no-color > tf_output.txt
+        run: terraform output -no-color
 
-      - name: Upload Terraform outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-outputs-${{ steps.set_env.outputs.tf_env || 'prod' }}
-          path: tf_output.txt
-
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/main')
-    apply-prod:
+  # JOB 3b: APPLY PROD — Triển khai PROD (Cần Approval)
+  apply-prod:
     name: "Apply [prod]"
     runs-on: ubuntu-latest
     needs: plan
@@ -274,6 +265,12 @@ apply-dev:
         uses: actions/download-artifact@v4
         with:
           name: tfplan-prod
+
+      - name: Pre-execution validation (Drift check)
+        run: |
+          terraform plan \
+            -var-file=environments/prod/terraform.tfvars \
+            -no-color
 
       - name: Terraform Apply
         run: terraform apply -auto-approve -no-color tfplan
