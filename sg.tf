@@ -23,7 +23,7 @@ resource "aws_security_group" "eks_cluster" {
       security_groups = [aws_security_group.bastion[0].id]
     }
   }
-  
+
   egress {
     from_port   = 0
     to_port     = 0

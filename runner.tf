@@ -1,4 +1,4 @@
-# IAM role
+# IAM role cho runner EC2 (data source — tạo tay trước)
 data "aws_iam_role" "github_runner" {
   count = local.should_create_runner ? 1 : 0
   name  = var.github_runner_role_name
@@ -41,7 +41,7 @@ resource "aws_instance" "github_runner" {
   count                  = local.should_create_runner ? 1 : 0
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.github_runner_instance_type
-  subnet_id              = aws_subnet.public[0].id   # public để outbound poll GitHub
+  subnet_id              = aws_subnet.public[0].id # public để outbound poll GitHub
   vpc_security_group_ids = [aws_security_group.github_runner[0].id]
   iam_instance_profile   = aws_iam_instance_profile.github_runner[0].name
   key_name               = var.github_runner_key_name != "" ? var.github_runner_key_name : null

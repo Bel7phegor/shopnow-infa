@@ -17,13 +17,13 @@ resource "aws_eks_node_group" "main" {
   update_config {
     max_unavailable = (
       var.nodegroup_max_unavailable_type == "number"
-        ? var.nodegroup_max_unavailable_value
-        : null
+      ? var.nodegroup_max_unavailable_value
+      : null
     )
     max_unavailable_percentage = (
       var.nodegroup_max_unavailable_type == "percentage"
-        ? var.nodegroup_max_unavailable_value
-        : null
+      ? var.nodegroup_max_unavailable_value
+      : null
     )
   }
 
