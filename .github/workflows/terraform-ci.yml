@@ -1,63 +1,40 @@
 name: Terraform CI/CD
 
-# NGUYÊN LÝ HOẠT ĐỘNG
-# Có 3 luồng trigger:
-#
-# [1] Pull Request vào develop → chạy plan cho DEV
-#     Mục đích: reviewer thấy infra sẽ thay đổi gì trước khi merge
-#
-# [2] Push/Merge vào develop  → plan + apply cho DEV
-#     Mục đích: tự động cập nhật dev infra sau khi PR được approve
-#
-# [3] Push/Merge vào main     → plan + manual approval + apply cho PROD
-#     Mục đích: cập nhật prod infra, nhưng phải có người approve
-#
-# KEY CONCEPT — Idempotent:
-#     Chạy 100 lần kết quả vẫn như nhau.
-#     EKS đã có → không tạo lại, chỉ thay đổi phần KHÁC với state.
-#
-# ═══════════════════════════════════════════════════════════════
+# Workflow Architecture:
+# 1. Pull Request to 'develop' -> Validate and Plan for DEV environment (No Apply).
+# 2. Push/Merge to 'develop'    -> Automatically Plan and Apply to DEV infrastructure.
+# 3. Push/Merge to 'main'       -> Plan and require manual approval before Apply to PROD infrastructure.
 
 on:
   pull_request:
     branches:
-      - develop    # PR vào develop → plan dev (không apply)
-      - main       # PR vào main    → plan prod (không apply)
+      - develop
+      - main
     paths:
-      - "**.tf"            # Chỉ chạy khi có file .tf thay đổi
-      - "**.tfvars"        # hoặc tfvars thay đổi
+      - "**.tf"
+      - "**.tfvars"
       - ".github/workflows/terraform-ci.yml"
 
   push:
     branches:
-      - develop    # Merge vào develop → apply dev
-      - main       # Merge vào main    → apply prod (sau manual approval)
+      - develop
+      - main
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - ".github/workflows/terraform-ci.yml"
 
-# Bắt buộc để OIDC hoạt động
 permissions:
-  id-token:        write   # Lấy OIDC token từ GitHub
-  contents:        read    # Đọc repo
-  pull-requests:   write   # Comment plan lên PR
+  id-token: write
+  contents: read
+  pull-requests: write
 
-# Tính toán môi trường dựa trên branch
-# develop → dev  |  main → prod
 env:
-  AWS_REGION:       ap-southeast-3
-  TF_VERSION:       "1.8.0"
-
-  # Branch nào → environment nào
-  # github.base_ref = target branch của PR
-  # github.ref_name = branch hiện tại khi push
-  TF_ENV: >-
-    ${{
-      (github.base_ref == 'main' || github.ref_name == 'main')
-      && 'prod'
-      || 'dev'
-    }}
+  AWS_REGION: ap-southeast-3
+  TF_VERSION: "1.8.0"
 
 jobs:
-  # JOB 1: Validate — chạy trên mọi trigger
-  # Kiểm tra syntax, format TRƯỚC KHI làm bất cứ điều gì với AWS
+  # JOB 1: VALIDATE - Static analysis, syntax and format validation
   validate:
     name: "Validate [${{ github.base_ref || github.ref_name }}]"
     runs-on: ubuntu-latest
@@ -71,67 +48,60 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      # terraform fmt -check: kiểm tra format, KHÔNG sửa
-      # Nếu dev quên format → fail ngay, không tốn thời gian chờ plan
       - name: Check Terraform format
         id: fmt
         run: terraform fmt -check -recursive
-        continue-on-error: true   # Cho chạy tiếp để có đủ thông tin lỗi
+        continue-on-error: true
 
-      # terraform validate: kiểm tra syntax HCL
-      # Cần init trước nhưng không cần backend thật → dùng -backend=false
-      - name: Terraform Init (local, no backend)
+      - name: Terraform Init (Local validation mode)
         run: terraform init -backend=false
 
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
-      # Nếu fmt fail → báo lỗi rõ ràng
-      - name: Fail nếu format sai
+      - name: Evaluate execution guardrails
         if: steps.fmt.outcome == 'failure'
         run: |
-          echo "Terraform format sai. Chạy 'terraform fmt -recursive' rồi commit lại."
+          echo "Error: Terraform code is not formatted. Please run 'terraform fmt -recursive' locally and re-commit."
           exit 1
 
-  # JOB 2: Plan — chạy sau validate
-  # Kết nối AWS thật, đọc state thật, tính toán diff
-  # KHÔNG thay đổi gì trên AWS
+  # JOB 2: PLAN - Infrastructure change calculation
   plan:
-    name: "Plan [${{ github.base_ref || github.ref_name }}→${{ (github.base_ref == 'main' || github.ref_name == 'main') && 'prod' || 'dev' }}]"
+    name: "Plan [Target: ${{ github.base_ref || github.ref_name }}]"
     runs-on: ubuntu-latest
     needs: validate
 
-    # Output để job apply dùng lại
     outputs:
       plan_exitcode: ${{ steps.plan.outputs.exitcode }}
       tf_env: ${{ steps.set_env.outputs.tf_env }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # Tính toán environment một lần, dùng lại ở nhiều bước
       - name: Set environment variables
         id: set_env
         run: |
-          if [[ "${{ github.base_ref }}" == "main" ]] || [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "tf_env=prod"                                        >> $GITHUB_OUTPUT
+          TARGET_BRANCH="${{ github.base_ref || github.ref_name }}"
+          echo "Log: Target branch evaluated as $TARGET_BRANCH"
+          
+          if [[ "$TARGET_BRANCH" == "main" ]]; then
+            echo "tf_env=prod"                                       >> $GITHUB_OUTPUT
             echo "tf_varfile=environments/prod/terraform.tfvars"     >> $GITHUB_OUTPUT
             echo "state_key=prod/terraform.tfstate"                  >> $GITHUB_OUTPUT
-            echo "gh_environment=production"                         >> $GITHUB_OUTPUT
-            echo "role_arn=${{ secrets.TERRAFORM_ROLE_ARN_PROD }}"  >> $GITHUB_OUTPUT
+            echo "role_arn=${{ secrets.TERRAFORM_ROLE_ARN_PROD }}"   >> $GITHUB_OUTPUT
           else
             echo "tf_env=dev"                                        >> $GITHUB_OUTPUT
             echo "tf_varfile=environments/dev/terraform.tfvars"      >> $GITHUB_OUTPUT
             echo "state_key=dev/terraform.tfstate"                   >> $GITHUB_OUTPUT
-            echo "gh_environment=development"                        >> $GITHUB_OUTPUT
-            echo "role_arn=${{ secrets.TERRAFORM_ROLE_ARN_DEV }}"   >> $GITHUB_OUTPUT
+            echo "role_arn=${{ secrets.TERRAFORM_ROLE_ARN_DEV }}"    >> $GITHUB_OUTPUT
           fi
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -139,8 +109,6 @@ jobs:
           role-to-assume: ${{ steps.set_env.outputs.role_arn }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Init với backend thật — kết nối S3 để đọc state
-      # -backend-config: override key theo môi trường, không cần nhiều file backend
       - name: Terraform Init
         run: |
           terraform init \
@@ -152,11 +120,6 @@ jobs:
             -reconfigure \
             -no-color
 
-      # Plan với tfvars của đúng môi trường
-      # -detailed-exitcode:
-      #   0 = không có thay đổi
-      #   1 = có lỗi
-      #   2 = có thay đổi (cần apply)
       - name: Terraform Plan
         id: plan
         run: |
@@ -166,109 +129,69 @@ jobs:
             -detailed-exitcode \
             -no-color 2>&1 | tee plan_output.txt
 
-          # Lưu exit code để job apply biết có cần chạy không
           echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
-        continue-on-error: true   # Cho phép exitcode=2 không fail job
+        continue-on-error: true
 
-      # Lưu plan file để job apply dùng — không plan lại, tránh drift
       - name: Upload plan artifact
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ steps.set_env.outputs.tf_env }}
           path: tfplan
-          retention-days: 1   # Plan chỉ valid trong 1 ngày
+          retention-days: 1
 
-      # Comment kết quả plan lên PR để reviewer đọc
-      # Chỉ chạy khi đây là Pull Request (không phải push)
-      - name: Comment plan lên PR
+      - name: Post plan summary to Pull Request
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const plan = fs.readFileSync('plan_output.txt', 'utf8');
-
-            // GitHub giới hạn comment 65536 chars — cắt bớt nếu quá dài
             const maxLen = 60000;
-            const truncated = plan.length > maxLen
-              ? plan.slice(0, maxLen) + '\n\n...(output quá dài, xem full log trong Actions)'
-              : plan;
-
-            // Lấy exit code để hiển thị đúng status
+            const truncated = plan.length > maxLen ? plan.slice(0, maxLen) + '\n\n...(Output truncated due to size limitations)' : plan;
             const exitcode = '${{ steps.plan.outputs.exitcode }}';
-            const statusEmoji = exitcode === '0' ? '✅' : exitcode === '2' ? '⚠️' : '❌';
-            const statusText  = exitcode === '0' ? 'Không có thay đổi'
-                              : exitcode === '2' ? 'Có thay đổi — cần review'
-                              : 'Plan thất bại';
-
+            
+            const statusText = exitcode === '0' ? 'SUCCESS (No changes)' 
+                             : exitcode === '2' ? 'WARNING (Changes detected)' 
+                             : 'FAILED';
+                             
             const body = [
-              `### Terraform Plan — \`${{ steps.set_env.outputs.tf_env }}\` ${statusEmoji}`,
-              `**Status:** ${statusText}`,
-              `**Branch:** \`${{ github.head_ref }}\` → \`${{ github.base_ref }}\``,
-              `**Commit:** \`${{ github.sha }}\``,
-              '',
-              '<details><summary>Xem chi tiết plan</summary>',
-              '',
-              '```',
-              truncated,
-              '```',
-              '</details>',
-              '',
-              '*Merge PR này sẽ tự động chạy `terraform apply`*',
+              `### Terraform Plan Summary — Môi trường: \`${{ steps.set_env.outputs.tf_env }}\``,
+              `**Trạng thái:** ${statusText}`,
+              `**Luồng nhánh:** \`${{ github.head_ref }}\` → \`${{ github.base_ref }}\``,
+              '<details><summary>Chi tiết log tóm tắt</summary>\n\n```\n' + truncated + '\n```\n</details>'
             ].join('\n');
-
-            // Xóa comment plan cũ trên PR trước khi tạo comment mới
-            // Tránh bị spam comment mỗi lần push
+            
             const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              issue_number: context.issue.number,
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
             });
-            const botComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes('Terraform Plan')
-            );
+            const botComment = comments.find(c => c.user.type === 'Bot' && c.body.includes('Terraform Plan Summary'));
             if (botComment) {
-              await github.rest.issues.deleteComment({
-                owner: context.repo.owner,
-                repo:  context.repo.repo,
-                comment_id: botComment.id,
-              });
+              await github.rest.issues.deleteComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: botComment.id });
             }
+            await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo:  context.repo.repo,
-              issue_number: context.issue.number,
-              body,
-            });
-
-      # Fail job nếu plan thật sự lỗi (exitcode=1)
-      # exitcode=2 = có thay đổi → bình thường, không fail
-      - name: Fail nếu plan lỗi
+      - name: Evaluate plan status
         if: steps.plan.outputs.exitcode == '1'
         run: exit 1
 
-  # JOB 3a: Apply Dev
-  # Chỉ chạy khi: push (merge) vào develop
-  # Tự động, không cần approval (dev được phép sai)
+  # JOB 3a: APPLY DEV - Automated deployment for development environment
   apply-dev:
     name: "Apply [dev]"
     runs-on: ubuntu-latest
     needs: plan
-    # Chỉ chạy khi: merge vào develop (không phải PR, không phải main)
-    if: >
-      github.event_name == 'push' &&
-      github.ref_name == 'develop' &&
+    if: |
+      github.event_name == 'push' && 
+      github.ref_name == 'develop' && 
       needs.plan.outputs.plan_exitcode == '2'
-    # plan_exitcode == '2' = có thay đổi thật, mới cần apply
-    # plan_exitcode == '0' = không thay đổi gì → skip apply
-
-    environment: development   # GitHub Environment để audit log
+    
+    environment: development
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
@@ -289,8 +212,6 @@ jobs:
             -reconfigure \
             -no-color
 
-      # Download plan file đã tạo ở job plan — dùng lại, không plan lại
-      # Tránh tình trạng plan một đằng apply một nẻo (time-of-check vs time-of-use)
       - name: Download plan artifact
         uses: actions/download-artifact@v4
         with:
@@ -299,31 +220,27 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve -no-color tfplan
 
-      # Show output sau apply để dễ debug
-      - name: Terraform Output
+      - name: Capture outputs
         run: terraform output -no-color
 
-  # JOB 3b: Apply Prod
-  # Chỉ chạy khi: push (merge) vào main
-  # Có manual approval gate — phải có người bấm approve
+  # JOB 3b: APPLY PROD - Gated deployment for production environment
   apply-prod:
-    name: "Apply [prod] — Manual Approval Required"
+    name: "Apply [prod]"
     runs-on: ubuntu-latest
     needs: plan
-    if: >
-      github.event_name == 'push' &&
-      github.ref_name == 'main' &&
+    if: |
+      github.event_name == 'push' && 
+      github.ref_name == 'main' && 
       needs.plan.outputs.plan_exitcode == '2'
 
-    # environment: production → GitHub dừng job này lại
-    # và gửi notification cho Required Reviewers
-    # Vào: GitHub repo → Settings → Environments → production → Required reviewers
     environment: production
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
@@ -349,9 +266,7 @@ jobs:
         with:
           name: tfplan-prod
 
-      # Plan lại một lần nữa trước apply — xác nhận không có drift
-      # kể từ lúc plan ở job trên đến lúc reviewer approve
-      - name: Terraform Plan (xác nhận trước apply)
+      - name: Pre-execution validation (Drift check)
         run: |
           terraform plan \
             -var-file=environments/prod/terraform.tfvars \
@@ -360,5 +275,5 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve -no-color tfplan
 
-      - name: Terraform Output
+      - name: Capture outputs
         run: terraform output -no-color
