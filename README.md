@@ -126,24 +126,7 @@ terraform import aws_instance.github_runner[0] i-0xxxxxxxxxxxxxxxxx
 
 ---
 
-## CI/CD files
-
-- `ci-dev.yml`  → copy vào `shopnow-frontend/.github/workflows/`
-- `ci-prod.yml` → copy vào `shopnow-frontend/.github/workflows/`
-
-### Hai pipeline hoàn toàn độc lập
-
-| Pipeline | Repo | Trigger | Làm gì |
-|---|---|---|---|
-| Infra | shopnow-infra | sửa .tf file + manual apply | Tạo/cập nhật VPC, EKS, EC2 |
-| App CI/CD | shopnow-frontend | push code | Build image + deploy lên infra đã có |
-
-**Terraform KHÔNG chạy mỗi lần push code app.**
-**CI/CD app KHÔNG tạo EC2 hay EKS mới.**
-
----
-
-## Tắt EKS để tiết kiệm chi phí (dev)
+## Tắt EKS
 
 ```bash
 # Tắt EKS + nodegroup + bastion, giữ VPC + runner
