@@ -134,6 +134,17 @@ variable "nodegroup_name" {
   default = "shopnow-nodegroup"
 }
 
+variable "nodegroup_update_strategy" {
+  description = "Default | Minimal"
+  type        = string
+  default     = "Default"
+
+  validation {
+    condition     = contains(["Default", "Minimal"], var.nodegroup_update_strategy)
+    error_message = "Giá trị hợp lệ: Default | Minimal"
+  }
+}
+
 variable "nodegroup_instance_types" {
   type    = list(string)
   default = ["t3.medium"]
