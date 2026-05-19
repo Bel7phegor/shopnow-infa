@@ -1,4 +1,4 @@
-# IAM role cho runner EC2 (data source — tạo tay trước)
+# IAM role
 data "aws_iam_role" "github_runner" {
   count = local.should_create_runner ? 1 : 0
   name  = var.github_runner_role_name
