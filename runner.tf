@@ -18,7 +18,7 @@ resource "aws_iam_instance_profile" "github_runner" {
 resource "aws_security_group" "github_runner" {
   count       = local.should_create_runner ? 1 : 0
   name        = "${var.project}-runner-sg-${var.environment}"
-  description = "GitHub Actions runner EC2 — chỉ cần outbound HTTPS để poll GitHub"
+  description = "GitHub Actions runner EC2"
   vpc_id      = aws_vpc.main.id
 
   # Không cần inbound port nào — runner tự poll GitHub qua outbound HTTPS
