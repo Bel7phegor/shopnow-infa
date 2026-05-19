@@ -23,14 +23,14 @@ private_subnets = [
 single_nat_gateway = true
 
 # EKS
-enable_eks           = true
+enable_eks           = false
 eks_cluster_name     = "shopnow-dev-eks"
 eks_cluster_version  = "1.35"
 eks_endpoint_access  = "public_and_private"
 enable_eks_auto_mode = false
 
 # Node group
-enable_nodegroup         = true
+enable_nodegroup         = false
 nodegroup_name           = "shopnow-dev-nodegroup"
 nodegroup_instance_types = ["t3.medium"]
 nodegroup_desired_size   = 1
@@ -48,7 +48,7 @@ nodegroup_max_unavailable_type  = "number"
 nodegroup_max_unavailable_value = 1
 
 # Bastion — để kubectl vào EKS (private subnet)
-enable_bastion        = true
+enable_bastion        = false
 bastion_instance_type = "t3.small"
 bastion_key_name      = "key-pem"
 
