@@ -1,0 +1,84 @@
+name: "Terraform DESTROY"
+
+# Chỉ cho phép chạy bằng tay (Manual trigger) từ tab Actions trên GitHub
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Chọn môi trường cần XÓA'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      confirm:
+        description: 'Gõ "DESTROY" viết hoa để xác nhận (Bắt buộc)'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-3
+  TF_VERSION: "1.8.0"
+
+jobs:
+  destroy-infra:
+    name: "Destroy [${{ inputs.environment }}]"
+    runs-on: ubuntu-latest
+    
+    # Nếu chọn prod, nó sẽ gọi màng lọc environment 'production' (Cần người Approve mới chạy)
+    environment: ${{ inputs.environment == 'prod' && 'production' || 'development' }}
+
+    steps:
+      - name: Safety Check
+        if: inputs.confirm != 'DESTROY'
+        run: |
+          echo "LỖI: Bạn chưa gõ đúng chữ DESTROY. Hủy bỏ quá trình xóa để đảm bảo an toàn!"
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set environment variables
+        id: set_env
+        run: |
+          if [[ "${{ inputs.environment }}" == "prod" ]]; then
+            echo "tf_varfile=environments/prod/terraform.tfvars"     >> $GITHUB_OUTPUT
+            echo "state_key=prod/terraform.tfstate"                  >> $GITHUB_OUTPUT
+            echo "role_arn=${{ secrets.TERRAFORM_ROLE_ARN_PROD }}"   >> $GITHUB_OUTPUT
+          else
+            echo "tf_varfile=environments/dev/terraform.tfvars"      >> $GITHUB_OUTPUT
+            echo "state_key=dev/terraform.tfstate"                   >> $GITHUB_OUTPUT
+            echo "role_arn=${{ secrets.TERRAFORM_ROLE_ARN_DEV }}"    >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.set_env.outputs.role_arn }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="key=${{ steps.set_env.outputs.state_key }}" \
+            -backend-config="bucket=shopnow-terraform-state" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=shopnow-terraform-lock" \
+            -backend-config="encrypt=true" \
+            -reconfigure \
+            -no-color
+
+      - name: Terraform Destroy
+        run: |
+          terraform destroy -auto-approve \
+            -var-file=${{ steps.set_env.outputs.tf_varfile }} \
+            -no-color
