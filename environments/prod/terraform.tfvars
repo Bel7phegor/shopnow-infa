@@ -38,7 +38,7 @@ nodegroup_max_size       = 6
 nodegroup_disk_size      = 30
 enable_node_auto_repair  = true
 
-# Prod: TẮT remote access — không ai SSH vào node production
+# Prod: disable remote access
 enable_node_remote_access = false
 nodegroup_ssh_key_name    = ""
 
@@ -59,9 +59,9 @@ bastion_instance_role_name = "ec2-eks-access-role"
 # GitHub Runner EC2
 enable_github_runner        = false
 github_runner_instance_type = "t3.large"
-github_runner_key_name      = "key-pem-prod"
+github_runner_key_name      = "key-pem"
 github_runner_label         = "fe-runner-prod"
-github_runner_role_name     = "github-runner-role-prod"
+github_runner_role_name     = "github-runner-role"
 
 # ACM certificate https
 acm_certificate_arn = "arn:aws:acm:ap-southeast-3:250830191861:certificate/d116056f-d39c-4a78-a7a4-d9f7dacde7dc"
