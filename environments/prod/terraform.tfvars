@@ -25,7 +25,7 @@ single_nat_gateway = false
 enable_eks           = true
 eks_cluster_name     = "shopnow-prod-eks"
 eks_cluster_version  = "1.35"
-eks_endpoint_access  = "private_and_public"
+eks_endpoint_access  = "public_and_private"
 enable_eks_auto_mode = false
 
 # Node group
