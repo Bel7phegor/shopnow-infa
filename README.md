@@ -115,15 +115,6 @@ tar xzf runner.tar.gz
 sudo ./svc.sh install
 sudo ./svc.sh start
 ```
-
-### 3. Import EC2 runner đang có vào Terraform state
-
-Nếu bạn đã có EC2 runner tạo tay, import vào thay vì tạo mới:
-
-```bash
-terraform import aws_instance.github_runner[0] i-0xxxxxxxxxxxxxxxxx
-```
-
 ---
 
 ## Tắt EKS

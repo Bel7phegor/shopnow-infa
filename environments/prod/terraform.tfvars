@@ -25,7 +25,7 @@ single_nat_gateway = false
 enable_eks           = true
 eks_cluster_name     = "shopnow-prod-eks"
 eks_cluster_version  = "1.35"
-eks_endpoint_access  = "private" # prod: chỉ truy cập nội bộ VPC
+eks_endpoint_access  = "private and public" # prod: chỉ truy cập nội bộ VPC
 enable_eks_auto_mode = false
 
 # Node group
@@ -46,7 +46,7 @@ nodegroup_ssh_key_name    = ""
 nodegroup_max_unavailable_type  = "percentage"
 nodegroup_max_unavailable_value = 25
 
-# Bastion — prod bastion nhỏ thôi, chỉ để kubectl khẩn cấp
+# Bastion
 enable_bastion        = true
 bastion_instance_type = "t3.small"
 bastion_key_name      = "key-pem"
@@ -64,4 +64,4 @@ github_runner_label         = "fe-runner-prod"
 github_runner_role_name     = "github-runner-role-prod"
 
 # ACM certificate https
-acm_certificate_arn = "arn:aws:acm:ap-southeast-3:250830191861:certificate/xxx"
+acm_certificate_arn = "arn:aws:acm:ap-southeast-3:250830191861:certificate/d116056f-d39c-4a78-a7a4-d9f7dacde7dc"

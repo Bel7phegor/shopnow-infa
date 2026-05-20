@@ -231,7 +231,7 @@ variable "bastion_eks_access_policy_arn" {
 variable "acm_certificate_arn" {
   description = "ARN của ACM certificate cho HTTPS ingress"
   type        = string
-  default     = ""
+  default     = "arn:aws:acm:ap-southeast-3:250830191861:certificate/d116056f-d39c-4a78-a7a4-d9f7dacde7dc"
 }
 
 # GITHUB RUNNER EC2

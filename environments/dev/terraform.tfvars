@@ -39,7 +39,7 @@ nodegroup_max_size       = 3
 nodegroup_disk_size      = 20
 enable_node_auto_repair  = true
 
-# Dev: bật remote access để dễ debug node
+# Dev: debug node
 enable_node_remote_access = true
 nodegroup_ssh_key_name    = "key-pem"
 
@@ -47,12 +47,12 @@ nodegroup_ssh_key_name    = "key-pem"
 nodegroup_max_unavailable_type  = "number"
 nodegroup_max_unavailable_value = 1
 
-# Bastion — để kubectl vào EKS (private subnet)
+# Bastion
 enable_bastion        = false
 bastion_instance_type = "t3.small"
 bastion_key_name      = "key-pem"
 
-# IAM roles (tạo tay trước)
+# IAM roles
 eks_cluster_role_name      = "eks-cluster-role"
 eks_nodegroup_role_name    = "eks-nodegroup-role"
 bastion_instance_role_name = "ec2-eks-access-role"
