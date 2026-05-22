@@ -202,7 +202,6 @@ jobs:
     name: "Apply [prod]"
     runs-on: ubuntu-latest
     needs: plan
-    # SỬA ĐỔI: Chỉ chạy khi Push/Tạo Tag mới 
     if: github.event_name == 'push' && github.ref_type == 'tag'
 
     environment: production

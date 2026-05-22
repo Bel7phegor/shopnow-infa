@@ -19,7 +19,7 @@ private_subnets = [
 ]
 
 # NAT — mỗi AZ 1 NAT để HA (nếu 1 AZ lỗi, AZ kia vẫn đi internet được)
-single_nat_gateway = false
+single_nat_gateway = true
 
 # EKS
 enable_eks           = true
