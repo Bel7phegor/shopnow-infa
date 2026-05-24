@@ -103,42 +103,55 @@ helm repo update
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace ingress-nginx \
   --create-namespace \
-  --set controller.service.type=LoadBalancer \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-scheme"=internet-facing \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-subnets"="$PUBLIC_SUBNETS" \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="$ACM_CERT_ARN" \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"=https \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"=http \
-  --set controller.service.targetPorts.https=http \
+  --set controller.service.type=NodePort \
   --set controller.config.use-forwarded-headers="true" \
   --set controller.config.proxy-real-ip-cidr="0.0.0.0/0" \
   --set controller.config.ssl-redirect="false" \
   --set controller.config.force-ssl-redirect="false" \
   --timeout 10m
 
-echo "[$(date)] ingress-nginx installed."
+echo "[$(date)] ingress-nginx installed as NodePort."
 kubectl get svc -n ingress-nginx
 
-echo "[$(date)] Waiting for NLB hostname..."
-NLB_HOSTNAME=""
-for i in $(seq 1 40); do
-  NLB_HOSTNAME=$(kubectl get svc ingress-nginx-controller \
-    -n ingress-nginx \
-    -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
-  if [ -n "$NLB_HOSTNAME" ]; then
-    echo "[$(date)] NLB hostname: $NLB_HOSTNAME"
-    break
-  fi
-  echo "[$(date)] Waiting for NLB... attempt $i/40"
-  sleep 15
-done
+# helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+#   --namespace ingress-nginx \
+#   --create-namespace \
+#   --set controller.service.type=LoadBalancer \
+#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
+#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-scheme"=internet-facing \
+#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-subnets"="$PUBLIC_SUBNETS" \
+#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="$ACM_CERT_ARN" \
+#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"=https \
+#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"=http \
+#   --set controller.service.targetPorts.https=http \
+#   --set controller.config.use-forwarded-headers="true" \
+#   --set controller.config.proxy-real-ip-cidr="0.0.0.0/0" \
+#   --set controller.config.ssl-redirect="false" \
+#   --set controller.config.force-ssl-redirect="false" \
+#   --timeout 10m
 
-if [ -z "$NLB_HOSTNAME" ]; then
-  echo "[$(date)] ERROR: NLB hostname not available after 10 minutes"
-  kubectl describe svc ingress-nginx-controller -n ingress-nginx
-  exit 1
-fi
+# echo "[$(date)] ingress-nginx installed."
+# kubectl get svc -n ingress-nginx
+
+# echo "[$(date)] Waiting for NLB hostname..."
+# NLB_HOSTNAME=""
+# for i in $(seq 1 40); do
+#   NLB_HOSTNAME=$(kubectl get svc ingress-nginx-controller \
+#     -n ingress-nginx \
+#     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+#   if [ -n "$NLB_HOSTNAME" ]; then
+#     echo "[$(date)] NLB hostname: $NLB_HOSTNAME"
+#     break
+#   fi
+#   echo "[$(date)] Waiting for NLB... attempt $i/40"
+#   sleep 15
+# done
+
+# if [ -z "$NLB_HOSTNAME" ]; then
+#   echo "[$(date)] ERROR: NLB hostname not available after 10 minutes"
+#   kubectl describe svc ingress-nginx-controller -n ingress-nginx
+#   exit 1
+# fi
 SCRIPT
 
 chmod +x /usr/local/bin/install-tools.sh
