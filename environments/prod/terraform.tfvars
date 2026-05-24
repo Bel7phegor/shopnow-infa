@@ -18,7 +18,6 @@ private_subnets = [
   { cidr = "10.1.12.0/24", az = "ap-southeast-3b", name = "private-3b" }
 ]
 
-# NAT — mỗi AZ 1 NAT để HA (nếu 1 AZ lỗi, AZ kia vẫn đi internet được)
 single_nat_gateway = true
 
 # EKS
@@ -32,9 +31,9 @@ enable_eks_auto_mode = false
 enable_nodegroup         = true
 nodegroup_name           = "shopnow-prod-nodegroup"
 nodegroup_instance_types = ["t3.large"]
-nodegroup_desired_size   = 3
-nodegroup_min_size       = 2
-nodegroup_max_size       = 6
+nodegroup_desired_size   = 1
+nodegroup_min_size       = 1
+nodegroup_max_size       = 3
 nodegroup_disk_size      = 30
 enable_node_auto_repair  = true
 
@@ -42,7 +41,7 @@ enable_node_auto_repair  = true
 enable_node_remote_access = false
 nodegroup_ssh_key_name    = ""
 
-# Update config — percentage để rolling update mượt hơn
+# Update config — percentage
 nodegroup_max_unavailable_type  = "percentage"
 nodegroup_max_unavailable_value = 25
 
