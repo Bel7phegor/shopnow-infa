@@ -150,4 +150,5 @@ terraform apply \
 
 # Bring them back online
 terraform apply -var-file=environments/dev/terraform.tfvars
+
 ```
