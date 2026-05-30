@@ -101,3 +101,38 @@ resource "aws_eks_access_policy_association" "bastion" {
 
   depends_on = [aws_eks_access_entry.bastion]
 }
+
+# 1. Khai báo lấy thông tin của IAM Role dùng cho GitHub Actions
+data "aws_iam_role" "github_actions" {
+  name = "Terraform-Prod-Role" 
+}
+
+# 2. EKS Access Entry for GitHub Actions
+resource "aws_eks_access_entry" "github_actions" {
+  count        = var.enable_eks ? 1 : 0
+  cluster_name  = aws_eks_cluster.main[0].name
+  principal_arn = data.aws_iam_role.github_actions.arn
+  type          = "STANDARD"
+  user_name     = "github-actions-runner"
+
+  tags = merge(local.common_tags, {
+    Name      = "${var.project}-github-actions-eks-access"
+    Component = "eks-access"
+  })
+
+  depends_on = [aws_eks_cluster.main]
+}
+
+# 3. Gắn policy ClusterAdmin cho Access Entry của GitHub Actions
+resource "aws_eks_access_policy_association" "github_actions" {
+  count        = var.enable_eks ? 1 : 0
+  cluster_name  = aws_eks_cluster.main[0].name
+  principal_arn = data.aws_iam_role.github_actions.arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.github_actions]
+}

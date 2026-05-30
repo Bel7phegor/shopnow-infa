@@ -76,7 +76,7 @@ resource "aws_lb_target_group" "nginx" {
     unhealthy_threshold = 3
     interval            = 15
     timeout             = 5
-    matcher             = "200"
+    matcher             = "200-404"
   }
 
   tags = merge(local.common_tags, {
