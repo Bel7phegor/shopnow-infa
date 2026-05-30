@@ -12,7 +12,6 @@ resource "aws_security_group" "eks_cluster" {
     security_groups = [aws_security_group.eks_nodes[0].id]
   }
 
-  # Thêm rule này — bastion → control plane
   dynamic "ingress" {
     for_each = local.should_create_bastion ? [1] : []
     content {
@@ -43,6 +42,7 @@ resource "aws_security_group" "eks_nodes" {
   description = "EKS worker nodes security group"
   vpc_id      = aws_vpc.main.id
 
+  # Node ↔ Node (all traffic)
   ingress {
     description = "Node to node"
     from_port   = 0
@@ -51,6 +51,40 @@ resource "aws_security_group" "eks_nodes" {
     self        = true
   }
 
+  # Control plane → Nodes (kubelet, metrics, exec)
+  ingress {
+    description     = "Control plane to nodes"
+    from_port       = 1025
+    to_port         = 65535
+    protocol        = "tcp"
+    security_groups = [aws_security_group.eks_cluster[0].id]
+  }
+
+  # ALB → ingress-nginx NodePort HTTP
+  dynamic "ingress" {
+    for_each = local.should_create_alb ? [1] : []
+    content {
+      description     = "ALB to ingress-nginx NodePort HTTP"
+      from_port       = 30080
+      to_port         = 30080
+      protocol        = "tcp"
+      security_groups = [aws_security_group.alb[0].id]
+    }
+  }
+
+  # ALB → ingress-nginx health check port
+  dynamic "ingress" {
+    for_each = local.should_create_alb ? [1] : []
+    content {
+      description     = "ALB health check to ingress-nginx"
+      from_port       = 10254
+      to_port         = 10254
+      protocol        = "tcp"
+      security_groups = [aws_security_group.alb[0].id]
+    }
+  }
+
+  # Bastion → Nodes (all traffic, để debug)
   dynamic "ingress" {
     for_each = local.should_create_bastion ? [1] : []
     content {
@@ -60,30 +94,6 @@ resource "aws_security_group" "eks_nodes" {
       protocol        = "-1"
       security_groups = [aws_security_group.bastion[0].id]
     }
-  }
-
-  ingress {
-    description = "NodePort range from NLB"
-    from_port   = 30000
-    to_port     = 32767
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTP from NLB"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTPS from NLB"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {

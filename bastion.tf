@@ -48,7 +48,7 @@ resource "aws_instance" "bastion" {
 #!/bin/bash
 exec > >(tee /var/log/userdata.log|logger -t user-data -s 2>/dev/console) 2>&1
 
-set -x # Debug mode: In ra từng câu lệnh trước khi chạy
+set -x
 apt-get update -y
 apt-get install -y curl unzip wget net-tools
 
@@ -79,6 +79,8 @@ aws eks update-kubeconfig \
 echo 'export KUBECONFIG=/root/.kube/config' >> /root/.bashrc
 echo 'export KUBECONFIG=/root/.kube/config' >> /home/ubuntu/.bashrc
 
+# install-tools.sh
+
 cat > /usr/local/bin/install-tools.sh << 'SCRIPT'
 #!/bin/bash
 set -e
@@ -91,74 +93,46 @@ kubectl wait --for=condition=Ready nodes --all --timeout=600s
 echo "[$(date)] All nodes ready."
 kubectl get nodes
 
-echo "[$(date)] Installing ingress-nginx with ACM certificate..."
-PUBLIC_SUBNET_1="${aws_subnet.public[0].id}"
-PUBLIC_SUBNET_2="${aws_subnet.public[1].id}"
-PUBLIC_SUBNETS="$PUBLIC_SUBNET_1\\,$PUBLIC_SUBNET_2"
-ACM_CERT_ARN="${var.acm_certificate_arn}"
+echo "[$(date)] Installing ingress-nginx (NodePort mode, fixed port 30080)..."
 
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
+
+STATUS=$(helm status ingress-nginx -n ingress-nginx 2>&1 || echo "not-found")
+if echo "$STATUS" | grep -qE "pending-install|pending-upgrade"; then
+  echo "[$(date)] Detected stuck release, cleaning up..."
+  helm uninstall ingress-nginx -n ingress-nginx --wait 2>/dev/null || true
+  sleep 10
+fi
 
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace ingress-nginx \
   --create-namespace \
   --set controller.service.type=NodePort \
+  --set controller.service.nodePorts.http=30080 \
+  --set controller.service.nodePorts.https=30443 \
   --set controller.config.use-forwarded-headers="true" \
   --set controller.config.proxy-real-ip-cidr="0.0.0.0/0" \
   --set controller.config.ssl-redirect="false" \
   --set controller.config.force-ssl-redirect="false" \
+  --set controller.metrics.enabled="true" \
+  --atomic \
+  --cleanup-on-fail \
+  --wait \
   --timeout 10m
 
-echo "[$(date)] ingress-nginx installed as NodePort."
+echo "[$(date)] ingress-nginx installed successfully."
 kubectl get svc -n ingress-nginx
+kubectl get pods -n ingress-nginx
 
-# helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-#   --namespace ingress-nginx \
-#   --create-namespace \
-#   --set controller.service.type=LoadBalancer \
-#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
-#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-scheme"=internet-facing \
-#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-subnets"="$PUBLIC_SUBNETS" \
-#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert"="$ACM_CERT_ARN" \
-#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-ssl-ports"=https \
-#   --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol"=http \
-#   --set controller.service.targetPorts.https=http \
-#   --set controller.config.use-forwarded-headers="true" \
-#   --set controller.config.proxy-real-ip-cidr="0.0.0.0/0" \
-#   --set controller.config.ssl-redirect="false" \
-#   --set controller.config.force-ssl-redirect="false" \
-#   --timeout 10m
-
-# echo "[$(date)] ingress-nginx installed."
-# kubectl get svc -n ingress-nginx
-
-# echo "[$(date)] Waiting for NLB hostname..."
-# NLB_HOSTNAME=""
-# for i in $(seq 1 40); do
-#   NLB_HOSTNAME=$(kubectl get svc ingress-nginx-controller \
-#     -n ingress-nginx \
-#     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
-#   if [ -n "$NLB_HOSTNAME" ]; then
-#     echo "[$(date)] NLB hostname: $NLB_HOSTNAME"
-#     break
-#   fi
-#   echo "[$(date)] Waiting for NLB... attempt $i/40"
-#   sleep 15
-# done
-
-# if [ -z "$NLB_HOSTNAME" ]; then
-#   echo "[$(date)] ERROR: NLB hostname not available after 10 minutes"
-#   kubectl describe svc ingress-nginx-controller -n ingress-nginx
-#   exit 1
-# fi
+echo "[$(date)] Done. ALB (created by Terraform) will forward to NodePort 30080."
 SCRIPT
 
 chmod +x /usr/local/bin/install-tools.sh
 
 cat > /etc/systemd/system/install-tools.service << 'SERVICE'
 [Unit]
-Description=Install EKS tools and Rancher
+Description=Install EKS tools (ingress-nginx NodePort)
 After=network-online.target cloud-final.service
 Wants=network-online.target
 ConditionPathExists=!/var/log/install-tools.log

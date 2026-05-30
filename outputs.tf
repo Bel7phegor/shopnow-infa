@@ -41,18 +41,30 @@ output "bastion_private_ip" {
   value = local.should_create_bastion ? aws_instance.bastion[0].private_ip : null
 }
 
-# GITHUB RUNNER
-output "github_runner_public_ip" {
-  description = "IP để SSH vào runner và chạy config.sh"
-  value       = local.should_create_runner ? aws_instance.github_runner[0].public_ip : null
+output "bastion_eks_access_policy" {
+  value = local.should_create_bastion ? var.bastion_eks_access_policy_arn : null
 }
 
-output "github_runner_instance_id" {
-  value = local.should_create_runner ? aws_instance.github_runner[0].id : null
+output "bastion_role_arn" {
+  value = local.should_create_bastion ? data.aws_iam_role.bastion_for_eks[0].arn : null
 }
 
-# USEFUL COMMANDS
-output "kubeconfig_command" {
-  description = "Chạy lệnh này để kết nối kubectl vào cluster"
-  value       = var.enable_eks ? "aws eks update-kubeconfig --region ${var.region} --name ${var.eks_cluster_name}" : null
+# ALB
+output "alb_dns_name" {
+  description = "DNS name của ALB — dùng để tạo CNAME record trong Route 53"
+  value       = local.should_create_alb ? aws_lb.main[0].dns_name : null
+}
+
+output "alb_zone_id" {
+  description = "Zone ID của ALB — dùng khi tạo Alias record trong Route 53 (thay vì CNAME)"
+  value       = local.should_create_alb ? aws_lb.main[0].zone_id : null
+}
+
+output "alb_arn" {
+  value = local.should_create_alb ? aws_lb.main[0].arn : null
+}
+
+output "nginx_nodeport" {
+  description = "NodePort mà ingress-nginx lắng nghe — ALB forward vào đây"
+  value       = "30080"
 }

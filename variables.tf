@@ -73,7 +73,7 @@ variable "single_nat_gateway" {
   default     = true
 }
 
-# IAM ROLES 
+# IAM ROLES
 variable "eks_cluster_role_name" {
   type    = string
   default = "eks-cluster-role"
@@ -228,10 +228,17 @@ variable "bastion_eks_access_policy_arn" {
   default = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
 }
 
+# ACM / ALB
 variable "acm_certificate_arn" {
-  description = "ARN của ACM certificate cho HTTPS ingress"
+  description = "ARN của ACM certificate cho HTTPS — phải cùng region với ALB"
   type        = string
   default     = "arn:aws:acm:ap-southeast-3:250830191861:certificate/d116056f-d39c-4a78-a7a4-d9f7dacde7dc"
+}
+
+variable "enable_alb" {
+  description = "Bật/tắt ALB — tự động tắt nếu node group chưa được tạo"
+  type        = bool
+  default     = true
 }
 
 # GITHUB RUNNER EC2

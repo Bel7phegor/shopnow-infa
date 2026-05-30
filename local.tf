@@ -16,4 +16,6 @@ locals {
 
   # Runner EC2
   should_create_runner = var.enable_github_runner
+
+  should_create_alb = local.should_create_nodegroup && var.enable_alb
 }
