@@ -104,7 +104,7 @@ resource "aws_eks_access_policy_association" "bastion" {
 
 # 1. Khai báo lấy thông tin của IAM Role dùng cho GitHub Actions
 data "aws_iam_role" "github_actions" {
-  name = "Terraform-Prod-Role"
+  name = "github-fe-shopnow-prod-role"
 }
 
 # 2. EKS Access Entry for GitHub Actions
@@ -113,7 +113,7 @@ resource "aws_eks_access_entry" "github_actions" {
   cluster_name  = aws_eks_cluster.main[0].name
   principal_arn = data.aws_iam_role.github_actions.arn
   type          = "STANDARD"
-  user_name     = "github-actions-runner"
+  user_name     = "github-runner"
 
   tags = merge(local.common_tags, {
     Name      = "${var.project}-github-actions-eks-access"
