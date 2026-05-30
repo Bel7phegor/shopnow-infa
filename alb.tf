@@ -1,4 +1,3 @@
-
 # ALB SECURITY GROUP
 resource "aws_security_group" "alb" {
   count       = local.should_create_alb ? 1 : 0
@@ -22,22 +21,20 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # ALB chỉ egress vào nodes trên đúng NodePort 30080
   egress {
-    description     = "Forward to ingress-nginx NodePort"
-    from_port       = 30080
-    to_port         = 30080
-    protocol        = "tcp"
-    security_groups = [aws_security_group.eks_nodes[0].id]
+    description = "Forward to ingress-nginx NodePort (nodes in VPC)"
+    from_port   = 30080
+    to_port     = 30080
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
-  # Health check port
   egress {
-    description     = "Health check to ingress-nginx"
-    from_port       = 10254
-    to_port         = 10254
-    protocol        = "tcp"
-    security_groups = [aws_security_group.eks_nodes[0].id]
+    description = "Health check to ingress-nginx (nodes in VPC)"
+    from_port   = 10254
+    to_port     = 10254
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = merge(local.common_tags, {
@@ -46,9 +43,7 @@ resource "aws_security_group" "alb" {
   })
 }
 
-# ─────────────────────────────────────────────
 # APPLICATION LOAD BALANCER
-# ─────────────────────────────────────────────
 resource "aws_lb" "main" {
   count              = local.should_create_alb ? 1 : 0
   name               = "${var.project}-alb"
@@ -56,12 +51,6 @@ resource "aws_lb" "main" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb[0].id]
   subnets            = aws_subnet.public[*].id
-
-  # Bật access log nếu cần debug
-  # access_logs {
-  #   bucket  = "shopnow-alb-logs"
-  #   enabled = true
-  # }
 
   tags = merge(local.common_tags, {
     Name      = "${var.project}-alb"
@@ -78,12 +67,12 @@ resource "aws_lb_target_group" "nginx" {
   port        = 30080
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
-  target_type = "instance" # forward theo EC2 instance + NodePort
+  target_type = "instance"
 
   health_check {
     enabled             = true
     path                = "/healthz"
-    port                = "10254" # ingress-nginx health check port
+    port                = "10254"
     protocol            = "HTTP"
     healthy_threshold   = 2
     unhealthy_threshold = 3
@@ -98,9 +87,7 @@ resource "aws_lb_target_group" "nginx" {
   })
 }
 
-# ─────────────────────────────────────────────
 # LISTENER: HTTP 80 → redirect HTTPS 443
-# ─────────────────────────────────────────────
 resource "aws_lb_listener" "http" {
   count             = local.should_create_alb ? 1 : 0
   load_balancer_arn = aws_lb.main[0].arn
@@ -122,9 +109,7 @@ resource "aws_lb_listener" "http" {
   })
 }
 
-# ─────────────────────────────────────────────
 # LISTENER: HTTPS 443 → forward → nginx TG
-# ─────────────────────────────────────────────
 resource "aws_lb_listener" "https" {
   count             = local.should_create_alb ? 1 : 0
   load_balancer_arn = aws_lb.main[0].arn
@@ -144,11 +129,6 @@ resource "aws_lb_listener" "https" {
   })
 }
 
-# ─────────────────────────────────────────────
-# AUTO SCALING ATTACHMENT
-# Gắn ASG của node group vào Target Group
-# → ALB tự động biết instances nào cần forward
-# ─────────────────────────────────────────────
 resource "aws_autoscaling_attachment" "nginx" {
   count = local.should_create_alb ? 1 : 0
 

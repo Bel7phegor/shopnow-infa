@@ -55,12 +55,12 @@ eks_cluster_role_name      = "eks-cluster-role"
 eks_nodegroup_role_name    = "eks-nodegroup-role"
 bastion_instance_role_name = "ec2-eks-access-role"
 
+enable_alb          = true
+acm_certificate_arn = "arn:aws:acm:ap-southeast-3:250830191861:certificate/d116056f-d39c-4a78-a7a4-d9f7dacde7dc"
+
 # GitHub Runner EC2
 enable_github_runner        = false
 github_runner_instance_type = "t3.large"
 github_runner_key_name      = "key-pem"
 github_runner_label         = "fe-runner-prod"
 github_runner_role_name     = "github-fe-shopnow-prod-role"
-
-# ACM certificate https
-acm_certificate_arn = "arn:aws:acm:ap-southeast-3:250830191861:certificate/d116056f-d39c-4a78-a7a4-d9f7dacde7dc"

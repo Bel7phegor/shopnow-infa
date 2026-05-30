@@ -4,6 +4,7 @@ resource "aws_security_group" "eks_cluster" {
   description = "EKS control plane security group"
   vpc_id      = aws_vpc.main.id
 
+  # Nodes → Control plane (HTTPS)
   ingress {
     description     = "Nodes to control plane"
     from_port       = 443
@@ -12,6 +13,7 @@ resource "aws_security_group" "eks_cluster" {
     security_groups = [aws_security_group.eks_nodes[0].id]
   }
 
+  # Bastion → Control plane (HTTPS)
   dynamic "ingress" {
     for_each = local.should_create_bastion ? [1] : []
     content {
@@ -36,6 +38,7 @@ resource "aws_security_group" "eks_cluster" {
   })
 }
 
+# EKS NODES SECURITY GROUP
 resource "aws_security_group" "eks_nodes" {
   count       = var.enable_eks ? 1 : 0
   name        = "${var.eks_cluster_name}-nodes-sg"
@@ -51,16 +54,14 @@ resource "aws_security_group" "eks_nodes" {
     self        = true
   }
 
-  # Control plane → Nodes (kubelet, metrics, exec)
   ingress {
-    description     = "Control plane to nodes"
-    from_port       = 1025
-    to_port         = 65535
-    protocol        = "tcp"
-    security_groups = [aws_security_group.eks_cluster[0].id]
+    description = "Control plane to nodes (kubelet, metrics, exec)"
+    from_port   = 1025
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
-  # ALB → ingress-nginx NodePort HTTP
   dynamic "ingress" {
     for_each = local.should_create_alb ? [1] : []
     content {
@@ -72,7 +73,7 @@ resource "aws_security_group" "eks_nodes" {
     }
   }
 
-  # ALB → ingress-nginx health check port
+  # ALB → ingress-nginx health check
   dynamic "ingress" {
     for_each = local.should_create_alb ? [1] : []
     content {
@@ -109,6 +110,7 @@ resource "aws_security_group" "eks_nodes" {
   })
 }
 
+# BASTION SECURITY GROUP
 resource "aws_security_group" "bastion" {
   count       = local.should_create_bastion ? 1 : 0
   name        = "${var.project}-bastion-sg"
