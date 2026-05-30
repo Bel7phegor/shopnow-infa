@@ -58,9 +58,7 @@ resource "aws_lb" "main" {
   })
 }
 
-# ─────────────────────────────────────────────
 # TARGET GROUP → ingress-nginx NodePort 30080
-# ─────────────────────────────────────────────
 resource "aws_lb_target_group" "nginx" {
   count       = local.should_create_alb ? 1 : 0
   name        = "${var.project}-nginx-tg"
@@ -71,8 +69,8 @@ resource "aws_lb_target_group" "nginx" {
 
   health_check {
     enabled             = true
-    path                = "/healthz"
-    port                = "10254"
+    path                = "/"
+    port                = "30080"
     protocol            = "HTTP"
     healthy_threshold   = 2
     unhealthy_threshold = 3

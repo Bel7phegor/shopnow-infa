@@ -62,29 +62,6 @@ resource "aws_security_group" "eks_nodes" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  dynamic "ingress" {
-    for_each = local.should_create_alb ? [1] : []
-    content {
-      description     = "ALB to ingress-nginx NodePort HTTP"
-      from_port       = 30080
-      to_port         = 30080
-      protocol        = "tcp"
-      security_groups = [aws_security_group.alb[0].id]
-    }
-  }
-
-  # ALB → ingress-nginx health check
-  dynamic "ingress" {
-    for_each = local.should_create_alb ? [1] : []
-    content {
-      description     = "ALB health check to ingress-nginx"
-      from_port       = 10254
-      to_port         = 10254
-      protocol        = "tcp"
-      security_groups = [aws_security_group.alb[0].id]
-    }
-  }
-
   # Bastion → Nodes (all traffic, để debug)
   dynamic "ingress" {
     for_each = local.should_create_bastion ? [1] : []
@@ -136,4 +113,15 @@ resource "aws_security_group" "bastion" {
     Name      = "${var.project}-bastion-sg"
     Component = "bastion"
   })
+}
+
+resource "aws_security_group_rule" "alb_to_eks_auto_nodes_http" {
+  count                    = var.enable_eks && local.should_create_alb ? 1 : 0
+  type                     = "ingress"
+  from_port                = 30080
+  to_port                  = 30080
+  protocol                 = "tcp"
+  security_group_id        = aws_eks_cluster.main[0].vpc_config[0].cluster_security_group_id
+  source_security_group_id = aws_security_group.alb[0].id
+  description              = "ALB to ingress-nginx NodePort HTTP"
 }
