@@ -199,7 +199,7 @@ variable "enable_node_remote_access" {
 
 variable "nodegroup_ssh_key_name" {
   type    = string
-  default = ""
+  default = "key-pem"
 }
 
 variable "nodegroup_remote_access_sg_ids" {

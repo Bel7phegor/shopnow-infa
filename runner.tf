@@ -21,8 +21,6 @@ resource "aws_security_group" "github_runner" {
   description = "GitHub Actions runner EC2"
   vpc_id      = aws_vpc.main.id
 
-  # Không cần inbound port nào — runner tự poll GitHub qua outbound HTTPS
-  # Nếu muốn SSH để debug: mở port 22 từ IP của bạn
   egress {
     from_port   = 0
     to_port     = 0
@@ -46,8 +44,6 @@ resource "aws_instance" "github_runner" {
   iam_instance_profile   = aws_iam_instance_profile.github_runner[0].name
   key_name               = var.github_runner_key_name != "" ? var.github_runner_key_name : null
 
-  # User data cài Docker + AWS CLI + kubectl + Helm
-  # Runner agent cài thủ công sau khi có token từ GitHub
   user_data = <<-USERDATA
     #!/bin/bash
     set -e
