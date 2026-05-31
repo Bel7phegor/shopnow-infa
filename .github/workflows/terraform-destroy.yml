@@ -1,6 +1,5 @@
 name: "Terraform DESTROY"
 
-# Chỉ cho phép chạy bằng tay (Manual trigger) từ tab Actions trên GitHub
 on:
   workflow_dispatch:
     inputs:
@@ -29,7 +28,6 @@ jobs:
     name: "Destroy [${{ inputs.environment }}]"
     runs-on: ubuntu-latest
     
-    # Nếu chọn prod, nó sẽ gọi màng lọc environment 'production' (Cần người Approve mới chạy)
     environment: ${{ inputs.environment == 'prod' && 'production' || 'development' }}
 
     steps:
