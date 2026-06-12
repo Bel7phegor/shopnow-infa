@@ -49,7 +49,6 @@ resource "aws_instance" "github_runner" {
     set -e
     exec > >(tee /var/log/userdata.log | logger -t userdata -s 2>/dev/console) 2>&1
 
-    # Update và cài dependencies
     apt-get update -y
     apt-get install -y curl unzip wget git jq
 
@@ -73,13 +72,12 @@ resource "aws_instance" "github_runner" {
     # Helm
     curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-    # Tạo user và thư mục runner
     useradd -m -s /bin/bash github-runner || true
     usermod -aG docker github-runner
     mkdir -p /home/github-runner/actions-runner
     chown -R github-runner:github-runner /home/github-runner
 
-    echo "Userdata complete — tiếp theo: SSH vào và chạy config.sh với token từ GitHub"
+    echo "Userdata complete — instance is ready to be configured as GitHub Actions runner"
   USERDATA
 
   tags = merge(local.common_tags, {

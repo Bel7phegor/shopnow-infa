@@ -68,7 +68,7 @@ variable "enable_nat_gateway" {
 }
 
 variable "single_nat_gateway" {
-  description = "true = 1 NAT dùng chung (dev) | false = mỗi AZ 1 NAT (prod)"
+  description = "true = 1 NAT used in common (dev) | false = each AZ has 1 NAT (prod)"
   type        = bool
   default     = true
 }
@@ -91,7 +91,7 @@ variable "bastion_instance_role_name" {
 
 # EKS
 variable "enable_eks" {
-  description = "Bật/tắt toàn bộ EKS cluster"
+  description = "Enable/disable all EKS cluster"
   type        = bool
   default     = true
 }
@@ -107,7 +107,7 @@ variable "eks_cluster_version" {
 }
 
 variable "enable_eks_auto_mode" {
-  description = "true = AWS quản lý node hoàn toàn | false = tự quản lý node group"
+  description = "true = AWS manager node completely | false = self-manage node group"
   type        = bool
   default     = false
 }
@@ -119,7 +119,7 @@ variable "eks_endpoint_access" {
 
   validation {
     condition     = contains(["public", "private", "public_and_private"], var.eks_endpoint_access)
-    error_message = "Giá trị hợp lệ: public | private | public_and_private"
+    error_message = "Valid values: public | private | public_and_private"
   }
 }
 
@@ -141,7 +141,7 @@ variable "nodegroup_update_strategy" {
 
   validation {
     condition     = contains(["Default", "Minimal"], var.nodegroup_update_strategy)
-    error_message = "Giá trị hợp lệ: Default | Minimal"
+    error_message = "Valid values: Default | Minimal"
   }
 }
 
@@ -177,7 +177,7 @@ variable "nodegroup_max_unavailable_type" {
 
   validation {
     condition     = contains(["number", "percentage"], var.nodegroup_max_unavailable_type)
-    error_message = "Giá trị hợp lệ: number | percentage"
+    error_message = "Valid values: number | percentage"
   }
 }
 
@@ -192,7 +192,7 @@ variable "enable_node_auto_repair" {
 }
 
 variable "enable_node_remote_access" {
-  description = "Bật SSH vào node — chỉ nên bật ở dev để debug"
+  description = "Enable SSH access to nodes — should be enable only for dev, disable for prod"
   type        = bool
   default     = false
 }
@@ -230,20 +230,20 @@ variable "bastion_eks_access_policy_arn" {
 
 # ACM / ALB
 variable "acm_certificate_arn" {
-  description = "ARN của ACM certificate cho HTTPS — phải cùng region với ALB"
+  description = "The ARN of the ACM certificate for HTTPS — must be in the same region as the ALB"
   type        = string
   default     = "arn:aws:acm:ap-southeast-3:250830191861:certificate/d116056f-d39c-4a78-a7a4-d9f7dacde7dc"
 }
 
 variable "enable_alb" {
-  description = "Bật/tắt ALB — tự động tắt nếu node group chưa được tạo"
+  description = "Enable/disable ALB — automatically disabled if node group is not created"
   type        = bool
   default     = true
 }
 
 # GITHUB RUNNER EC2
 variable "enable_github_runner" {
-  description = "Bật/tắt EC2 GitHub Actions runner"
+  description = "Enable/disable EC2 GitHub Actions runner"
   type        = bool
   default     = true
 }
@@ -259,13 +259,13 @@ variable "github_runner_key_name" {
 }
 
 variable "github_runner_label" {
-  description = "Label của runner dùng trong runs-on. Dev: fe-runner-dev, prod: fe-runner-prod"
+  description = "The runner's label is used in runs-on. Dev: fe-runner-dev, prod: fe-runner-prod"
   type        = string
   default     = "fe-runner-dev"
 }
 
 variable "github_runner_role_name" {
-  description = "IAM Role gắn vào runner EC2 — cần quyền ECR push, EKS access"
+  description = "The IAM Role is attached to the EC2 runner — requires ECR push and EKS access permissions."
   type        = string
   default     = "github-runner-role"
 }

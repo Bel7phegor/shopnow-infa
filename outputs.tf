@@ -51,12 +51,12 @@ output "bastion_role_arn" {
 
 # ALB
 output "alb_dns_name" {
-  description = "DNS name của ALB — dùng để tạo CNAME record trong Route 53"
+  description = "DNS name of the ALB — used to create CNAME record in Route 53"
   value       = local.should_create_alb ? aws_lb.main[0].dns_name : null
 }
 
 output "alb_zone_id" {
-  description = "Zone ID của ALB — dùng khi tạo Alias record trong Route 53 (thay vì CNAME)"
+  description = "Zone ID of the ALB — used when creating Alias record in Route 53 (instead of CNAME)"
   value       = local.should_create_alb ? aws_lb.main[0].zone_id : null
 }
 
@@ -65,6 +65,6 @@ output "alb_arn" {
 }
 
 output "nginx_nodeport" {
-  description = "NodePort mà ingress-nginx lắng nghe — ALB forward vào đây"
+  description = "nodeport that ingress-nginx listens to - ALB forward traffic to this port"
   value       = "30080"
 }

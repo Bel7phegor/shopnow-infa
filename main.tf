@@ -9,7 +9,7 @@ terraform {
   #   --billing-mode PAY_PER_REQUEST --region ap-southeast-3
   backend "s3" {
     bucket         = "shopnow-terraform-state"
-    key            = "terraform.tfstate" # override bằng -backend-config khi init
+    key            = "terraform.tfstate"
     region         = "ap-southeast-3"
     dynamodb_table = "shopnow-terraform-lock"
     encrypt        = true
